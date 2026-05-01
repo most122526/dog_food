@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, viewport-fit=cover">
+    <title>智能宠物投喂器 · 远程喂食管家</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(145deg, #1a2a2f 0%, #0e1a1f 100%);
+            min-height: 100vh;
+            padding: 16px;
+            color: #f0f3f5;
+            position: relative;
+        }
+
+        /* 宠物爪印装饰背景 */
+        body::before {
+            content: "🐾";
+            font-size: 100px;
+            position: fixed;
+            bottom: 20px;
+            right: 10px;
+            opacity: 0.05;
+            pointer-events: none;
+            transform: rotate(-15deg);
+        }
+
+        body::after {
+            content: "🐕🐈";
+            font-size: 70px;
+            position: fixed;
+            top: 20%;
+            left: -20px;
+            opacity: 0.04;
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 550px;
+            margin: 0 auto;
+        }
+
+        /* 卡片通用样式 */
+        .card {
+            background: rgba(20, 35, 40, 0.7);
+            backdrop-filter: blur(16px);
+            border-radius: 2rem;
+            padding: 1.2rem 1.5rem;
+            margin-bottom: 18px;
+            border: 1px solid rgba(255, 180, 80, 0.25);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #ffdd99;
+            border-left: 4px solid #f9a826;
+            padding-left: 12px;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            background: #0f1e24;
+            border-radius: 3rem;
+            padding: 0.5rem 1.2rem;
+            margin-bottom: 18px;
+        }
+
+        .bluetooth-led {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .led {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #5a6e7a;
+            transition: 0.2s;
+        }
+
+        .led.active {
+            background: #2ecc71;
+            box-shadow: 0 0 10px #2ecc71;
+            animation: pulse 1.2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; transform: scale(1);}
+            100% { opacity: 1; transform: scale(1.1);}
+        }
+
+        .time-box {
+            font-family: monospace;
+            font-weight: 700;
+            font-size: 1.2rem;
+            background: #00000040;
+            padding: 4px 12px;
+            border-radius: 2rem;
+            letter-spacing: 1px;
+        }
+
+        .btn {
+            background: #2c3f44;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 2.5rem;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+
+        .btn-primary { background: #e67e22; }
+        .btn-primary:hover { background: #f39c12; transform: scale(0.98);}
+        .btn-success { background: #27ae60; }
+        .btn-danger { background: #c0392b; }
+        .btn-warning { background: #f1c40f; color: #2c3e50;}
+        .btn-outline { background: transparent; border: 1px solid #e67e22; color: #f5b041;}
+        .btn-sm { padding: 6px 14px; font-size: 0.75rem;}
+
+        .flex-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* 数据卡片三兄弟 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .stat-item {
+            background: #0f1b22;
+            border-radius: 1.5rem;
+            padding: 12px 6px;
+            text-align: center;
+            border-bottom: 3px solid #e67e22;
+        }
+
+        .stat-value {
+            font-size: 1.9rem;
+            font-weight: 800;
+            margin: 5px 0;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            opacity: 0.8;
+            letter-spacing: 1px;
+        }
+
+        .pet-near-icon {
+            font-size: 2rem;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            justify-content: center;
+            margin: 15px 0 10px;
+        }
+
+        .mode-badge {
+            background: #1e2f36;
+            border-radius: 2rem;
+            padding: 5px 12px;
+            font-size: 0.7rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .history-table-wrapper {
+            max-height: 260px;
+            overflow-y: auto;
+            background: #071217;
+            border-radius: 1.2rem;
+            padding: 0rem;
+            font-size: 0.7rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #d4e6f1;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 8px 6px;
+            border-bottom: 1px solid #2a4858;
+        }
+
+        th {
+            color: #ffbc6e;
+        }
+
+        .log-area {
+            background: #051016;
+            border-radius: 1rem;
+            padding: 8px 10px;
+            font-family: monospace;
+            font-size: 0.65rem;
+            max-height: 90px;
+            overflow-y: auto;
+            margin-top: 12px;
+        }
+
+        .time-picker {
+            background: #1c2f38;
+            border: none;
+            border-radius: 2rem;
+            padding: 8px 12px;
+            color: white;
+            font-size: 0.8rem;
+        }
+
+        hr {
+            border-color: #2e5a68;
+            margin: 12px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- 头部状态 -->
+    <div class="status-bar">
+        <div class="bluetooth-led">
+            <div class="led" id="bleLed"></div>
+            <span id="connStatus">未连接</span>
+        </div>
+        <div class="time-box" id="liveClock">--:--:--</div>
+        <div>
+            <button class="btn btn-sm btn-outline" id="configToggleBtn"><i class="fas fa-bluetooth"></i> 蓝牙</button>
+        </div>
+    </div>
+
+    <!-- 蓝牙配置区 (可折叠) -->
+    <div id="bleConfigPanel" style="display: none;">
+        <div class="card">
+            <div class="flex-row" style="justify-content: space-between;">
+                <input id="serviceUuid" placeholder="服务UUID" value="0000fff0-0000-1000-8000-00805f9b34fb" style="flex:2; background:#0f1a1f; border:none; padding:8px; border-radius:2rem;">
+                <input id="notifyUuid" placeholder="通知UUID" value="0000fff1-0000-1000-8000-00805f9b34fb" style="flex:2; margin-left:6px;">
+                <input id="writeUuid" placeholder="写入UUID" value="0000fff1-0000-1000-8000-00805f9b34fb" style="flex:2; margin-left:6px;">
+            </div>
+            <div class="flex-row" style="margin-top: 12px;">
+                <button class="btn btn-primary" id="scanBtn"><i class="fas fa-search"></i> 扫描</button>
+                <button class="btn btn-success" id="connectBtn" disabled><i class="fas fa-link"></i> 连接</button>
+                <button class="btn btn-danger" id="disconnectBtn" disabled><i class="fas fa-unlink"></i> 断开</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 宠物信息卡片 + 实时数据 -->
+    <div class="stats-grid">
+        <div class="stat-item">
+            <div><i class="fas fa-warehouse"></i></div>
+            <div class="stat-value" id="foodWeight">--</div>
+            <div class="stat-label">粮仓重量 (g)</div>
+        </div>
+        <div class="stat-item">
+            <div><i class="fas fa-drumstick-bite"></i></div>
+            <div class="stat-value" id="lastFeedAmount">--</div>
+            <div class="stat-label">本次投喂量 (g)</div>
+        </div>
+        <div class="stat-item">
+            <div class="pet-near-icon" id="petNearIcon">🐾</div>
+            <div class="stat-value" id="petNearStatus">--</div>
+            <div class="stat-label">宠物靠近</div>
+        </div>
+    </div>
+
+    <!-- 状态指示：报警模式&禁止喂食 -->
+    <div class="card" style="padding: 0.8rem 1.2rem;">
+        <div class="flex-row" style="justify-content: space-between;">
+            <div class="mode-badge"><i class="fas fa-bell"></i> 报警: <span id="alarmModeStatus">关闭</span></div>
+            <div class="mode-badge"><i class="fas fa-ban"></i> 喂食模式: <span id="feedForbiddenStatus">允许</span></div>
+        </div>
+    </div>
+
+    <!-- 控制按钮区 -->
+    <div class="card">
+        <div class="card-title"><i class="fas fa-paw"></i> 快速喂食</div>
+        <div class="button-group">
+            <button class="btn btn-primary" id="feedSmallBtn"><i class="fas fa-cookie-bite"></i> 小量(A)</button>
+            <button class="btn btn-primary" id="feedMidBtn"><i class="fas fa-bowl-food"></i> 中量(B)</button>
+            <button class="btn btn-primary" id="feedLargeBtn"><i class="fas fa-utensils"></i> 大量(C)</button>
+        </div>
+        <div class="button-group">
+            <button class="btn btn-warning" id="forceFeedBtn"><i class="fas fa-hand-fist"></i> 强制投喂(D)</button>
+            <button class="btn btn-outline" id="alarmToggleBtn"><i class="fas fa-bell-slash"></i> 报警切换(F)</button>
+            <button class="btn btn-outline" id="forbidToggleBtn"><i class="fas fa-lock"></i> 禁止喂食(J)</button>
+        </div>
+        <div class="log-area" id="cmdLog">📡 点击按钮发送指令...</div>
+    </div>
+
+    <!-- 定时投喂计划 -->
+    <div class="card">
+        <div class="card-title"><i class="far fa-clock"></i> 自动定时投喂 (到点下发强制投喂D)</div>
+        <div class="flex-row" style="justify-content: space-between; align-items: center;">
+            <div>
+                <label>⏰ 定时1:</label>
+                <input type="time" id="timerTime1" class="time-picker" value="08:00">
+                <input type="checkbox" id="timerEnable1"> 启用
+            </div>
+            <div>
+                <label>⏰ 定时2:</label>
+                <input type="time" id="timerTime2" class="time-picker" value="20:00">
+                <input type="checkbox" id="timerEnable2"> 启用
+            </div>
+        </div>
+        <div class="flex-row" style="justify-content: flex-start; margin-top: 10px;">
+            <span class="mode-badge"><i class="fas fa-info-circle"></i> 下次触发: <span id="nextTriggerTip">未设定</span></span>
+        </div>
+    </div>
+
+    <!-- 历史记录表格 -->
+    <div class="card">
+        <div class="card-title"><i class="fas fa-history"></i> 喂食记录</div>
+        <div class="history-table-wrapper">
+            <table id="historyTable">
+                <thead><tr><th>时间</th><th>投喂等级</th><th>来源</th></tr></thead>
+                <tbody id="historyBody"></tbody>
+            </table>
+        </div>
+        <div class="flex-row" style="justify-content: space-between; margin-top: 10px;">
+            <button class="btn btn-sm" id="clearHistoryBtn"><i class="fas fa-trash"></i> 清空记录</button>
+            <span style="font-size: 0.65rem;">* 手动/自动投喂均会记录</span>
+        </div>
+    </div>
+
+    <!-- 系统消息日志 -->
+    <div class="log-area" id="sysMsgLog">🐕 系统就绪，请连接蓝牙设备</div>
+</div>
+
+<script>
+    (function() {
+        // ----- DOM 元素绑定 -----
+        // 蓝牙相关
+        const bleLed = document.getElementById('bleLed');
+        const connStatusSpan = document.getElementById('connStatus');
+        const scanBtn = document.getElementById('scanBtn');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const serviceUuidInput = document.getElementById('serviceUuid');
+        const notifyUuidInput = document.getElementById('notifyUuid');
+        const writeUuidInput = document.getElementById('writeUuid');
+        const configToggleBtn = document.getElementById('configToggleBtn');
+        const bleConfigPanel = document.getElementById('bleConfigPanel');
+        
+        // 数据展示
+        const foodWeightSpan = document.getElementById('foodWeight');
+        const lastFeedAmountSpan = document.getElementById('lastFeedAmount');
+        const petNearStatusSpan = document.getElementById('petNearStatus');
+        const petNearIcon = document.getElementById('petNearIcon');
+        const alarmModeSpan = document.getElementById('alarmModeStatus');
+        const feedForbiddenSpan = document.getElementById('feedForbiddenStatus');
+        
+        // 按钮
+        const feedSmall = document.getElementById('feedSmallBtn');
+        const feedMid = document.getElementById('feedMidBtn');
+        const feedLarge = document.getElementById('feedLargeBtn');
+        const forceFeed = document.getElementById('forceFeedBtn');
+        const alarmToggle = document.getElementById('alarmToggleBtn');
+        const forbidToggle = document.getElementById('forbidToggleBtn');
+        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+        
+        // 定时器控件
+        const timerTime1 = document.getElementById('timerTime1');
+        const timerEnable1 = document.getElementById('timerEnable1');
+        const timerTime2 = document.getElementById('timerTime2');
+        const timerEnable2 = document.getElementById('timerEnable2');
+        const nextTriggerSpan = document.getElementById('nextTriggerTip');
+        
+        const historyBody = document.getElementById('historyBody');
+        const cmdLogDiv = document.getElementById('cmdLog');
+        const sysMsgDiv = document.getElementById('sysMsgLog');
+        
+        // 全局变量
+        let bluetoothDevice = null;
+        let gattServer = null;
+        let notifyCharacteristic = null;
+        let writeCharacteristic = null;
+        let isConnected = false;
+        
+        // 设备状态变量
+        let forbiddenMode = false;   // J指令禁止喂食模式
+        let alarmState = false;      // F 报警状态
+        
+        // 接收数据变量
+        let currentFoodWeight = 0;    // 粮仓重量(g)
+        let currentFeedAmount = 0;    // 本次投喂量(g)
+        let petNear = 0;              // 0远离 1靠近
+        
+        // 历史记录数组 (本地存储)
+        let feedingHistory = [];   // { timeStr, level, source }
+        
+        // 定时器ID
+        let intervalTimer = null;
+        
+        // ----- 辅助函数 -----
+        function addSysMsg(msg) {
+            const div = document.createElement('div');
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            sysMsgDiv.appendChild(div);
+            sysMsgDiv.scrollTop = sysMsgDiv.scrollHeight;
+            if(sysMsgDiv.children.length > 20) sysMsgDiv.removeChild(sysMsgDiv.children[0]);
+        }
+        
+        function addCmdLog(msg) {
+            const div = document.createElement('div');
+            div.textContent = `📨 ${msg}`;
+            cmdLogDiv.appendChild(div);
+            cmdLogDiv.scrollTop = cmdLogDiv.scrollHeight;
+            if(cmdLogDiv.children.length > 8) cmdLogDiv.removeChild(cmdLogDiv.children[0]);
+        }
+        
+        // 更新UI数据 (粮仓重量,投喂量,宠物靠近)
+        function updateSensorUI() {
+            foodWeightSpan.innerText = currentFoodWeight.toFixed(0);
+            lastFeedAmountSpan.innerText = currentFeedAmount.toFixed(0);
+            if(petNear === 1) {
+                petNearStatusSpan.innerText = "靠近中 🐶";
+                petNearIcon.innerHTML = "🐕‍🦺";
+            } else {
+                petNearStatusSpan.innerText = "未靠近";
+                petNearIcon.innerHTML = "🐾";
+            }
+        }
+        
+        // 刷新禁止/报警模式UI
+        function updateModeUI() {
+            alarmModeSpan.innerText = alarmState ? "已开启 🔔" : "关闭 🔕";
+            feedForbiddenSpan.innerText = forbiddenMode ? "禁止喂食 🚫" : "允许喂食 ✅";
+        }
+        
+        // 添加喂食记录 (传入 level: "小量","中量","大量","强制投喂", source "手动"/"定时")
+        function addFeedRecord(level, source = "手动") {
+            const now = new Date();
+            const timeStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+            feedingHistory.unshift({ timeStr, level, source });
+            if(feedingHistory.length > 50) feedingHistory.pop();
+            saveHistoryToLocal();
+            renderHistoryTable();
+        }
+        
+        function renderHistoryTable() {
+            historyBody.innerHTML = "";
+            feedingHistory.slice(0, 30).forEach(rec => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${rec.timeStr}</td><td>${rec.level}</td><td>${rec.source}</td>`;
+                historyBody.appendChild(row);
+            });
+        }
+        
+        function saveHistoryToLocal() {
+            try {
+                localStorage.setItem('petFeedingHistory', JSON.stringify(feedingHistory));
+            } catch(e){}
+        }
+        
+        function loadHistoryFromLocal() {
+            try {
+                const stored = localStorage.getItem('petFeedingHistory');
+                if(stored) feedingHistory = JSON.parse(stored);
+                renderHistoryTable();
+            } catch(e){ feedingHistory = []; }
+        }
+        
+        // 发送蓝牙指令 (字符串)
+        async function sendCommand(cmd, logMsg = null) {
+            if(!isConnected || !writeCharacteristic) {
+                addSysMsg("❌ 未连接设备，无法发送指令");
+                return false;
+            }
+            // 如果禁止喂食模式开启，且指令是A/B/C/D喂食类，则拦截
+            if(forbiddenMode && (cmd === 'A' || cmd === 'B' || cmd === 'C' || cmd === 'D')) {
+                addSysMsg("⛔ 当前处于禁止喂食模式，喂食指令被拦截 (按J可解除)");
+                return false;
+            }
+            try {
+                const encoder = new TextEncoder();
+                await writeCharacteristic.writeValue(encoder.encode(cmd));
+                addCmdLog(`发送命令: ${cmd} (${logMsg || ''})`);
+                // 若为喂食指令则立即添加记录
+                let level = "";
+                if(cmd === 'A') level = "小量";
+                else if(cmd === 'B') level = "中量";
+                else if(cmd === 'C') level = "大量";
+                else if(cmd === 'D') level = "强制投喂";
+                if(level) {
+                    addFeedRecord(level, "手动");
+                }
+                // 特殊指令F/J修改本地状态 （设备也会同时改变，但为了即时反馈）
+                if(cmd === 'F') {
+                    alarmState = !alarmState;
+                    updateModeUI();
+                    addSysMsg(`报警模式已切换至 ${alarmState ? "开启" : "关闭"}`);
+                }
+                if(cmd === 'J') {
+                    forbiddenMode = !forbiddenMode;
+                    updateModeUI();
+                    addSysMsg(`喂食禁止模式已切换至 ${forbiddenMode ? "开启" : "关闭"}`);
+                }
+                return true;
+            } catch(e) {
+                addSysMsg(`发送失败: ${e.message}`);
+                return false;
+            }
+        }
+        
+        // 解析蓝牙通知数据 格式 #粮食重量#投喂量#宠物靠近#
+        function parseNotifyData(buffer) {
+            const decoder = new TextDecoder('utf-8');
+            const raw = decoder.decode(buffer);
+            addCmdLog(`收到: ${raw.trim()}`);
+            const parts = raw.split('#').filter(p => p.trim() !== '');
+            if(parts.length >= 3) {
+                const w = parseFloat(parts[0]);
+                const fa = parseFloat(parts[1]);
+                const near = parseInt(parts[2], 10);
+                if(!isNaN(w)) currentFoodWeight = w;
+                if(!isNaN(fa)) currentFeedAmount = fa;
+                if(!isNaN(near)) petNear = near;
+                updateSensorUI();
+                return true;
+            }
+            return false;
+        }
+        
+        function handleNotification(event) {
+            const value = event.target.value;
+            if(value) parseNotifyData(value);
+        }
+        
+        // 蓝牙连接逻辑
+        async function scanAndSelect() {
+            if(!navigator.bluetooth) {
+                alert("当前浏览器不支持Web Bluetooth，请使用Chrome或Bluefy等支持蓝牙的浏览器");
+                return;
+            }
+            const serviceUUID = serviceUuidInput.value.trim();
+            if(!serviceUUID) {
+                alert("请填写服务UUID");
+                return;
+            }
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [serviceUUID] }],
+                    optionalServices: [serviceUUID]
+                });
+                bluetoothDevice = device;
+                connectBtn.disabled = false;
+                addSysMsg(`已选择设备: ${device.name || device.id}`);
+            } catch(err) {
+                if(err.message.indexOf('cancelled') === -1) addSysMsg(`扫描错误: ${err.message}`);
+            }
+        }
+        
+        async function connectToDevice() {
+            if(!bluetoothDevice) return;
+            const svcId = serviceUuidInput.value.trim();
+            const notifyId = notifyUuidInput.value.trim();
+            const writeId = writeUuidInput.value.trim();
+            try {
+                gattServer = await bluetoothDevice.gatt.connect();
+                const service = await gattServer.getPrimaryService(svcId);
+                notifyCharacteristic = await service.getCharacteristic(notifyId);
+                await notifyCharacteristic.startNotifications();
+                notifyCharacteristic.addEventListener('characteristicvaluechanged', handleNotification);
+                if(writeId) {
+                    try {
+                        writeCharacteristic = await service.getCharacteristic(writeId);
+                    } catch(e) { addSysMsg(`写入特征获取失败: ${e.message}`);}
+                }
+                isConnected = true;
+                updateConnectionUI(true);
+                bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnect);
+                addSysMsg("✅ 蓝牙已连接，等待数据...");
+            } catch(e) {
+                addSysMsg(`连接失败: ${e.message}`);
+                updateConnectionUI(false);
+            }
+        }
+        
+        function onDisconnect() {
+            addSysMsg("设备已断开");
+            updateConnectionUI(false);
+            if(notifyCharacteristic) notifyCharacteristic.removeEventListener('characteristicvaluechanged', handleNotification);
+            notifyCharacteristic = null;
+            writeCharacteristic = null;
+            isConnected = false;
+        }
+        
+        function updateConnectionUI(connected) {
+            isConnected = connected;
+            bleLed.classList.toggle('active', connected);
+            connStatusSpan.innerText = connected ? "已连接" : "未连接";
+            connectBtn.disabled = connected || !bluetoothDevice;
+            disconnectBtn.disabled = !connected;
+            scanBtn.disabled = connected;
+        }
+        
+        function disconnect() {
+            if(bluetoothDevice && bluetoothDevice.gatt.connected) {
+                bluetoothDevice.gatt.disconnect();
+            }
+        }
+        
+        // 实时时钟
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('zh-CN', {hour12: false});
+            document.getElementById('liveClock').innerText = timeStr;
+            return now;
+        }
+        
+        // 定时投喂检测
+        let lastTriggerDate = "";  // 避免同一分钟内重复触发
+        function checkScheduledFeeds(now) {
+            if(!isConnected) return;
+            const currentHour = now.getHours().toString().padStart(2,'0');
+            const currentMin = now.getMinutes().toString().padStart(2,'0');
+            const currentHM = `${currentHour}:${currentMin}`;
+            const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${currentHM}`;
+            
+            const timers = [];
+            if(timerEnable1.checked) timers.push(timerTime1.value);
+            if(timerEnable2.checked) timers.push(timerTime2.value);
+            
+            let nextTime = null;
+            for(let t of timers) {
+                if(t === currentHM && lastTriggerDate !== todayKey) {
+                    // 触发强制投喂D
+                    addSysMsg(`⏰ 定时投喂触发 (${t}) 下发强制投喂D`);
+                    sendCommand('D', "定时强制投喂").then(() => {
+                        addFeedRecord("强制投喂", "定时");
+                    });
+                    lastTriggerDate = todayKey;
+                    break;
+                }
+                // 计算最近的下一次触发时间（简单展示）
+                if(t > currentHM) {
+                    if(!nextTime || t < nextTime) nextTime = t;
+                }
+            }
+            // 展示最近触发时间
+            if(nextTime) nextTriggerSpan.innerText = nextTime;
+            else if(timers.length) nextTriggerSpan.innerText = "明日首次";
+            else nextTriggerSpan.innerText = "未启用定时";
+        }
+        
+        // 定时扫描触发
+        function startBackgroundTasks() {
+            if(intervalTimer) clearInterval(intervalTimer);
+            intervalTimer = setInterval(() => {
+                const now = updateClock();
+                checkScheduledFeeds(now);
+            }, 1000);
+        }
+        
+        // 初始化事件绑定
+        function bindEvents() {
+            configToggleBtn.addEventListener('click', () => {
+                bleConfigPanel.style.display = bleConfigPanel.style.display === 'none' ? 'block' : 'none';
+            });
+            scanBtn.addEventListener('click', scanAndSelect);
+            connectBtn.addEventListener('click', connectToDevice);
+            disconnectBtn.addEventListener('click', disconnect);
+            feedSmall.addEventListener('click', () => sendCommand('A', '小量喂食'));
+            feedMid.addEventListener('click', () => sendCommand('B', '中量喂食'));
+            feedLarge.addEventListener('click', () => sendCommand('C', '大量喂食'));
+            forceFeed.addEventListener('click', () => sendCommand('D', '强制投喂'));
+            alarmToggle.addEventListener('click', () => sendCommand('F', '报警切换'));
+            forbidToggle.addEventListener('click', () => sendCommand('J', '禁止喂食切换'));
+            clearHistoryBtn.addEventListener('click', () => {
+                feedingHistory = [];
+                saveHistoryToLocal();
+                renderHistoryTable();
+                addSysMsg("历史记录已清空");
+            });
+        }
+        
+        // 初始化加载
+        function init() {
+            bindEvents();
+            loadHistoryFromLocal();
+            updateConnectionUI(false);
+            updateSensorUI();
+            updateModeUI();
+            startBackgroundTasks();
+            updateClock();
+            addSysMsg("🐱 智能宠物投喂器已启动，连接蓝牙后即可控制");
+            // 默认折叠配置区
+            bleConfigPanel.style.display = 'none';
+        }
+        
+        init();
+    })();
+</script>
+</body>
+</html>
