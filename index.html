@@ -22,7 +22,6 @@
             position: relative;
         }
 
-        /* 宠物爪印装饰背景 */
         body::before {
             content: "🐾";
             font-size: 100px;
@@ -49,7 +48,6 @@
             margin: 0 auto;
         }
 
-        /* 卡片通用样式 */
         .card {
             background: rgba(20, 35, 40, 0.7);
             backdrop-filter: blur(16px);
@@ -151,7 +149,6 @@
             align-items: center;
         }
 
-        /* 数据卡片三兄弟 */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -249,6 +246,65 @@
         hr {
             border-color: #2e5a68;
             margin: 12px 0;
+        }
+
+        /* 粮仓不足提醒弹窗样式 */
+        .food-warning-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+
+        .food-warning-box {
+            background: #2c1e1e;
+            border: 2px solid #e67e22;
+            border-radius: 2rem;
+            padding: 22px 20px;
+            text-align: center;
+            max-width: 320px;
+            color: #fff;
+            box-shadow: 0 20px 40px rgba(230,126,34,0.4);
+            animation: popIn 0.3s ease;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .food-warning-box i {
+            font-size: 2.8rem;
+            color: #f39c12;
+            margin-bottom: 8px;
+        }
+
+        .food-warning-box h3 {
+            font-size: 1.2rem;
+            margin: 6px 0;
+            font-weight: 700;
+        }
+
+        .food-warning-box p {
+            font-size: 0.85rem;
+            opacity: 0.9;
+            margin-bottom: 16px;
+        }
+
+        .food-warning-box .current-weight {
+            font-weight: 800;
+            color: #f39c12;
+        }
+
+        .food-warning-box .btn {
+            margin-top: 6px;
         }
     </style>
 </head>
@@ -364,10 +420,19 @@
     <div class="log-area" id="sysMsgLog">🐕 系统就绪，请连接蓝牙设备</div>
 </div>
 
+<!-- 粮仓不足提醒弹窗 -->
+<div class="food-warning-overlay" id="foodWarningOverlay">
+    <div class="food-warning-box">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h3>粮仓不足！</h3>
+        <p>当前剩余 <span class="current-weight" id="warningFoodWeight">0</span> g，低于20g安全线，请及时补充宠物粮。</p>
+        <button class="btn btn-warning" id="closeFoodWarningBtn"><i class="fas fa-check"></i> 我知道了</button>
+    </div>
+</div>
+
 <script>
     (function() {
         // ----- DOM 元素绑定 -----
-        // 蓝牙相关
         const bleLed = document.getElementById('bleLed');
         const connStatusSpan = document.getElementById('connStatus');
         const scanBtn = document.getElementById('scanBtn');
@@ -379,7 +444,6 @@
         const configToggleBtn = document.getElementById('configToggleBtn');
         const bleConfigPanel = document.getElementById('bleConfigPanel');
         
-        // 数据展示
         const foodWeightSpan = document.getElementById('foodWeight');
         const lastFeedAmountSpan = document.getElementById('lastFeedAmount');
         const petNearStatusSpan = document.getElementById('petNearStatus');
@@ -387,7 +451,6 @@
         const alarmModeSpan = document.getElementById('alarmModeStatus');
         const feedForbiddenSpan = document.getElementById('feedForbiddenStatus');
         
-        // 按钮
         const feedSmall = document.getElementById('feedSmallBtn');
         const feedMid = document.getElementById('feedMidBtn');
         const feedLarge = document.getElementById('feedLargeBtn');
@@ -396,7 +459,6 @@
         const forbidToggle = document.getElementById('forbidToggleBtn');
         const clearHistoryBtn = document.getElementById('clearHistoryBtn');
         
-        // 定时器控件
         const timerTime1 = document.getElementById('timerTime1');
         const timerEnable1 = document.getElementById('timerEnable1');
         const timerTime2 = document.getElementById('timerTime2');
@@ -406,6 +468,10 @@
         const historyBody = document.getElementById('historyBody');
         const cmdLogDiv = document.getElementById('cmdLog');
         const sysMsgDiv = document.getElementById('sysMsgLog');
+
+        const foodWarningOverlay = document.getElementById('foodWarningOverlay');
+        const warningFoodWeightSpan = document.getElementById('warningFoodWeight');
+        const closeFoodWarningBtn = document.getElementById('closeFoodWarningBtn');
         
         // 全局变量
         let bluetoothDevice = null;
@@ -414,20 +480,18 @@
         let writeCharacteristic = null;
         let isConnected = false;
         
-        // 设备状态变量
-        let forbiddenMode = false;   // J指令禁止喂食模式
-        let alarmState = false;      // F 报警状态
+        let forbiddenMode = false;
+        let alarmState = false;
         
-        // 接收数据变量
-        let currentFoodWeight = 0;    // 粮仓重量(g)
-        let currentFeedAmount = 0;    // 本次投喂量(g)
-        let petNear = 0;              // 0远离 1靠近
+        let currentFoodWeight = 0;
+        let currentFeedAmount = 0;
+        let petNear = 0;
         
-        // 历史记录数组 (本地存储)
-        let feedingHistory = [];   // { timeStr, level, source }
-        
-        // 定时器ID
+        let feedingHistory = [];
         let intervalTimer = null;
+
+        // 粮仓不足提醒控制标志
+        let foodWarningActive = false; // 是否正处于不足状态且未处理
         
         // ----- 辅助函数 -----
         function addSysMsg(msg) {
@@ -446,7 +510,6 @@
             if(cmdLogDiv.children.length > 8) cmdLogDiv.removeChild(cmdLogDiv.children[0]);
         }
         
-        // 更新UI数据 (粮仓重量,投喂量,宠物靠近)
         function updateSensorUI() {
             foodWeightSpan.innerText = currentFoodWeight.toFixed(0);
             lastFeedAmountSpan.innerText = currentFeedAmount.toFixed(0);
@@ -457,15 +520,43 @@
                 petNearStatusSpan.innerText = "未靠近";
                 petNearIcon.innerHTML = "🐾";
             }
+            // 检查粮食是否低于20g
+            checkFoodShortage();
         }
         
-        // 刷新禁止/报警模式UI
+        function checkFoodShortage() {
+            // 如果粮食重量低于20g，且当前警告尚未显示（即 foodWarningActive 为 false）
+            if (currentFoodWeight < 20 && !foodWarningActive) {
+                showFoodWarning();
+                foodWarningActive = true;
+            } else if (currentFoodWeight >= 20) {
+                // 重量回升到20g以上，重置标志
+                foodWarningActive = false;
+                hideFoodWarning();
+            }
+        }
+        
+        function showFoodWarning() {
+            warningFoodWeightSpan.textContent = currentFoodWeight.toFixed(0);
+            foodWarningOverlay.style.display = 'flex';
+            addSysMsg("⚠️ 粮仓低于20g，请及时补充！");
+        }
+        
+        function hideFoodWarning() {
+            foodWarningOverlay.style.display = 'none';
+        }
+        
+        closeFoodWarningBtn.addEventListener('click', () => {
+            hideFoodWarning();
+            // 注意：这里不重置 foodWarningActive，否则同一次不足状态会反复弹窗。
+            // 只有重量回升到20以上才重置标志。
+        });
+        
         function updateModeUI() {
             alarmModeSpan.innerText = alarmState ? "已开启 🔔" : "关闭 🔕";
             feedForbiddenSpan.innerText = forbiddenMode ? "禁止喂食 🚫" : "允许喂食 ✅";
         }
         
-        // 添加喂食记录 (传入 level: "小量","中量","大量","强制投喂", source "手动"/"定时")
         function addFeedRecord(level, source = "手动") {
             const now = new Date();
             const timeStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
@@ -498,13 +589,11 @@
             } catch(e){ feedingHistory = []; }
         }
         
-        // 发送蓝牙指令 (字符串)
         async function sendCommand(cmd, logMsg = null) {
             if(!isConnected || !writeCharacteristic) {
                 addSysMsg("❌ 未连接设备，无法发送指令");
                 return false;
             }
-            // 如果禁止喂食模式开启，且指令是A/B/C/D喂食类，则拦截
             if(forbiddenMode && (cmd === 'A' || cmd === 'B' || cmd === 'C' || cmd === 'D')) {
                 addSysMsg("⛔ 当前处于禁止喂食模式，喂食指令被拦截 (按J可解除)");
                 return false;
@@ -513,7 +602,6 @@
                 const encoder = new TextEncoder();
                 await writeCharacteristic.writeValue(encoder.encode(cmd));
                 addCmdLog(`发送命令: ${cmd} (${logMsg || ''})`);
-                // 若为喂食指令则立即添加记录
                 let level = "";
                 if(cmd === 'A') level = "小量";
                 else if(cmd === 'B') level = "中量";
@@ -522,7 +610,6 @@
                 if(level) {
                     addFeedRecord(level, "手动");
                 }
-                // 特殊指令F/J修改本地状态 （设备也会同时改变，但为了即时反馈）
                 if(cmd === 'F') {
                     alarmState = !alarmState;
                     updateModeUI();
@@ -540,7 +627,6 @@
             }
         }
         
-        // 解析蓝牙通知数据 格式 #粮食重量#投喂量#宠物靠近#
         function parseNotifyData(buffer) {
             const decoder = new TextDecoder('utf-8');
             const raw = decoder.decode(buffer);
@@ -564,7 +650,6 @@
             if(value) parseNotifyData(value);
         }
         
-        // 蓝牙连接逻辑
         async function scanAndSelect() {
             if(!navigator.bluetooth) {
                 alert("当前浏览器不支持Web Bluetooth，请使用Chrome或Bluefy等支持蓝牙的浏览器");
@@ -638,7 +723,6 @@
             }
         }
         
-        // 实时时钟
         function updateClock() {
             const now = new Date();
             const timeStr = now.toLocaleTimeString('zh-CN', {hour12: false});
@@ -646,8 +730,7 @@
             return now;
         }
         
-        // 定时投喂检测
-        let lastTriggerDate = "";  // 避免同一分钟内重复触发
+        let lastTriggerDate = "";
         function checkScheduledFeeds(now) {
             if(!isConnected) return;
             const currentHour = now.getHours().toString().padStart(2,'0');
@@ -662,7 +745,6 @@
             let nextTime = null;
             for(let t of timers) {
                 if(t === currentHM && lastTriggerDate !== todayKey) {
-                    // 触发强制投喂D
                     addSysMsg(`⏰ 定时投喂触发 (${t}) 下发强制投喂D`);
                     sendCommand('D', "定时强制投喂").then(() => {
                         addFeedRecord("强制投喂", "定时");
@@ -670,18 +752,15 @@
                     lastTriggerDate = todayKey;
                     break;
                 }
-                // 计算最近的下一次触发时间（简单展示）
                 if(t > currentHM) {
                     if(!nextTime || t < nextTime) nextTime = t;
                 }
             }
-            // 展示最近触发时间
             if(nextTime) nextTriggerSpan.innerText = nextTime;
             else if(timers.length) nextTriggerSpan.innerText = "明日首次";
             else nextTriggerSpan.innerText = "未启用定时";
         }
         
-        // 定时扫描触发
         function startBackgroundTasks() {
             if(intervalTimer) clearInterval(intervalTimer);
             intervalTimer = setInterval(() => {
@@ -690,7 +769,6 @@
             }, 1000);
         }
         
-        // 初始化事件绑定
         function bindEvents() {
             configToggleBtn.addEventListener('click', () => {
                 bleConfigPanel.style.display = bleConfigPanel.style.display === 'none' ? 'block' : 'none';
@@ -712,7 +790,6 @@
             });
         }
         
-        // 初始化加载
         function init() {
             bindEvents();
             loadHistoryFromLocal();
@@ -722,8 +799,14 @@
             startBackgroundTasks();
             updateClock();
             addSysMsg("🐱 智能宠物投喂器已启动，连接蓝牙后即可控制");
-            // 默认折叠配置区
             bleConfigPanel.style.display = 'none';
+            // 初始化粮食不足标志
+            if (currentFoodWeight < 20) {
+                foodWarningActive = true;
+                showFoodWarning();
+            } else {
+                foodWarningActive = false;
+            }
         }
         
         init();
